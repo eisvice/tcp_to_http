@@ -18,6 +18,7 @@ func main() {
 	}
 	defer listener.Close()
 
+	fmt.Printf("listen on port %s\n", addr)
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
