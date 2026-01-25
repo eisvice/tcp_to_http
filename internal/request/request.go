@@ -32,7 +32,7 @@ const crlf = "\r\n"
 const bufferSize = 8
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	buff := make([]byte, bufferSize, bufferSize)
+	buff := make([]byte, bufferSize)
 	readToIndex := 0
 	request := Request{
 		state: requestStateInitialied,

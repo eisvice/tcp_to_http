@@ -1,12 +1,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"io"
+	"httpfromtcp/internal/request"
 	"log"
 	"net"
-	"strings"
 )
 
 const addr = ":42069"
@@ -27,47 +25,53 @@ func main() {
 
 		fmt.Println("Connection has been accepted!")
 		fmt.Println("<=============================>")
-		for strReceived := range getLinesChannel(connection) {
-			fmt.Println(strReceived)
+		request, err := request.RequestFromReader(connection)
+		if err != nil {
+			log.Fatalf("error while reading request: %s", err)
 		}
+		fmt.Println("Request line:")
+		fmt.Println("- Method:", request.RequestLine.Method)
+		fmt.Println("- Target:", request.RequestLine.RequestTarget)
+		fmt.Println("- Version:", request.RequestLine.HttpVersion)
+
 		fmt.Println("<=============================>")
 		fmt.Println("Connection has been closed!")
 	}
 }
 
-func getLinesChannel(f io.ReadCloser) <-chan string {
-	lines := make(chan string)
+// func getLinesChannel(f io.ReadCloser) <-chan string {
+// 	lines := make(chan string)
 
-	go func() {
-		defer f.Close()
-		defer close(lines)
-		currentLineContent := ""
+// 	go func() {
+// 		defer f.Close()
+// 		defer close(lines)
+// 		currentLineContent := ""
 
-		for {
-			buff := make([]byte, 8) 
-			n, err := f.Read(buff)
-			if err != nil {
-				// first check if the current line contains charachters
-				if currentLineContent != "" {
-					// and return lines
-					lines <- currentLineContent 
-				}
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				fmt.Printf("error: %s\n", err.Error())
-				return
-			}
+// 		for {
+// 			buff := make([]byte, 8) 
+// 			n, err := f.Read(buff)
+// 			if err != nil {
+// 				// first check if the current line contains charachters
+// 				if currentLineContent != "" {
+// 					// and return lines
+// 					lines <- currentLineContent 
+// 				}
+// 				if errors.Is(err, io.EOF) {
+// 					break
+// 				}
+// 				fmt.Printf("error: %s\n", err.Error())
+// 				return
+// 			}
 	
-			str := string(buff[:n])
-			parts := strings.Split(str, "\n")
-			for i := 0; i < len(parts)-1; i++ {
-				lines <- fmt.Sprintf("%s%s", currentLineContent, parts[i])
-				currentLineContent = ""
-			}
-			currentLineContent += parts[len(parts)-1]
-		}
-	}()
+// 			str := string(buff[:n])
+// 			parts := strings.Split(str, "\n")
+// 			for i := 0; i < len(parts)-1; i++ {
+// 				lines <- fmt.Sprintf("%s%s", currentLineContent, parts[i])
+// 				currentLineContent = ""
+// 			}
+// 			currentLineContent += parts[len(parts)-1]
+// 		}
+// 	}()
 
-	return lines
-}
+// 	return lines
+// }
