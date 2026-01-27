@@ -14,7 +14,7 @@ func TestFieldLineParse(t *testing.T) {
 	n, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers["Host"])
+	assert.Equal(t, "localhost:42069", headers["host"])
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -32,7 +32,7 @@ func TestFieldLineParse(t *testing.T) {
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers["Host"])
+	assert.Equal(t, "localhost:42069", headers["host"])
 	assert.Equal(t, 57, n)
 	assert.False(t, done)
 
@@ -43,7 +43,7 @@ func TestFieldLineParse(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, headers)
 	assert.Equal(t, "localhost:42069", headers["host"])
-	assert.Equal(t, "curl/7.81.0", headers["User-Agent"])
+	assert.Equal(t, "curl/7.81.0", headers["user-agent"])
 	assert.Equal(t, 25, n)
 	assert.False(t, done)
 
@@ -56,4 +56,22 @@ func TestFieldLineParse(t *testing.T) {
 	assert.Empty(t, headers)
 	assert.Equal(t, 2, n)
 	assert.True(t, done)
+
+	// Test: Invalid character header
+	headers = NewHeaders()
+	data = []byte("H©st: localhost:42069\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.Error(t, err)
+	assert.Equal(t, 0, n)
+	assert.False(t, done)
+
+	// Test: Valid 2 headers with existing headers
+	headers = map[string]string{"set-person": "lane-loves-go"}
+	data = []byte("Set-Person: prime-loves-zig\r\nAccept: */*\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	require.NotNil(t, headers)
+	assert.Equal(t, "lane-loves-go,prime-loves-zig", headers["set-person"])
+	assert.Equal(t, 29, n)
+	assert.False(t, done)
 }
