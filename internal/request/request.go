@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"httpfromtcp/internal/headers"
 	"io"
 	"strings"
 )
@@ -11,6 +12,7 @@ import (
 
 type Request struct {
 	RequestLine RequestLine
+	Headers headers.Headers
 	state requestState
 }
 
@@ -25,6 +27,7 @@ type requestState int
 
 const (
 	requestStateInitialied requestState = iota
+	requestStateParsingHeaders 
 	requestStateDone
 )
 
@@ -48,7 +51,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		numBytesRead, err := reader.Read(buff[readToIndex:])
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				request.state = requestStateDone
+				if request.state != requestStateDone {
+					return nil, fmt.Errorf("incomplete request, in state: %d, read n bytes on EOF: %d", request.state, numBytesRead)
+				}
 				break
 			}
 			return nil, err
@@ -62,6 +67,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 		copy(buff, buff[numBytesParsed:])
 		readToIndex -= numBytesParsed
+		fmt.Println(request)
 	}
 
 	return &request, nil
@@ -129,9 +135,29 @@ func (r *Request) parse(data []byte) (int, error) {
 		}
 
 		r.RequestLine = *requestLine
-		r.state = requestStateDone
+		r.Headers = headers.NewHeaders()
+		r.state = requestStateParsingHeaders
 		return n, nil
 
+	case requestStateParsingHeaders:
+		done := false
+		totalBytesParsed := 0
+		
+		for !done {
+			n, done, err := r.Headers.Parse(data[totalBytesParsed:])
+			totalBytesParsed += n
+			if err != nil {
+				return 0, err
+			}
+			if done {
+				r.state = requestStateDone
+			} 
+			if n == 0 {
+				break
+			}
+		}
+
+		return totalBytesParsed, nil
 	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	default:

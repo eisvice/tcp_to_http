@@ -71,7 +71,7 @@ func TestFieldLineParse(t *testing.T) {
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "lane-loves-go,prime-loves-zig", headers["set-person"])
+	assert.Equal(t, "lane-loves-go, prime-loves-zig", headers["set-person"])
 	assert.Equal(t, 29, n)
 	assert.False(t, done)
 }
