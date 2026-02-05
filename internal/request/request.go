@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"httpfromtcp/internal/headers"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -13,7 +14,9 @@ import (
 type Request struct {
 	RequestLine RequestLine
 	Headers headers.Headers
+	Body []byte
 	state requestState
+	bodyLengthRead int
 }
 
 
@@ -28,6 +31,7 @@ type requestState int
 const (
 	requestStateInitialied requestState = iota
 	requestStateParsingHeaders 
+	requestStateParsingBody
 	requestStateDone
 )
 
@@ -39,6 +43,8 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	readToIndex := 0
 	request := Request{
 		state: requestStateInitialied,
+		Headers: headers.NewHeaders(),
+		Body: make([]byte, 0),
 	}
 
 	for request.state != requestStateDone {
@@ -67,7 +73,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 		copy(buff, buff[numBytesParsed:])
 		readToIndex -= numBytesParsed
-		fmt.Println(request)
 	}
 
 	return &request, nil
@@ -124,43 +129,69 @@ func requestLineFromString(str string) (*RequestLine, error) {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
+	totalBytesParsed := 0
+	for r.state != requestStateDone {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		if err != nil {
+			return 0, err
+		}
+		totalBytesParsed += n
+		if n == 0 {
+			break
+		}
+	}
+
+	return totalBytesParsed, nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
 	switch r.state {
 	case requestStateInitialied:
 		requestLine, n, err := parseRequestLine(data)
 		if err != nil {
+			// something actually went wrong
 			return 0, err
 		}
 		if n == 0 {
+			// just need more data
 			return 0, nil
 		}
-
 		r.RequestLine = *requestLine
-		r.Headers = headers.NewHeaders()
 		r.state = requestStateParsingHeaders
 		return n, nil
-
 	case requestStateParsingHeaders:
-		done := false
-		totalBytesParsed := 0
-		
-		for !done {
-			n, done, err := r.Headers.Parse(data[totalBytesParsed:])
-			totalBytesParsed += n
-			if err != nil {
-				return 0, err
-			}
-			if done {
-				r.state = requestStateDone
-			} 
-			if n == 0 {
-				break
-			}
+		n, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
 		}
-
-		return totalBytesParsed, nil
+		if done {
+			r.state = requestStateParsingBody
+		}
+		return n, nil
+	case requestStateParsingBody:
+		contentLenStr, ok := r.Headers.Get("Content-Length")
+		if !ok {
+			// assume that if no content-length header is present, there is no body
+			r.state = requestStateDone
+			return len(data), nil
+		}
+		contentLen, err := strconv.Atoi(contentLenStr)
+		if err != nil {
+			return 0, fmt.Errorf("malformed Content-Length: %s", err)
+		}
+		r.Body = append(r.Body, data...)
+		r.bodyLengthRead += len(data)
+		if r.bodyLengthRead > contentLen {
+			return 0, fmt.Errorf("Content-Length too large")
+		}
+		if r.bodyLengthRead == contentLen {
+			r.state = requestStateDone
+		}
+		return len(data), nil
 	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	default:
-		return 0, fmt.Errorf("error: unknown state")
-	}	
+		return 0, fmt.Errorf("unknown state")
+	}
+
 }
