@@ -48,3 +48,8 @@ func WriteHeaders(w io.Writer, headers headers.Headers) error {
 	_, err := w.Write([]byte("\r\n"))
 	return err
 }
+
+func WriteBody(w io.Writer, body []byte) error {
+	_, err := fmt.Fprintf(w, "%s", body)
+	return err
+}
