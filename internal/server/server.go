@@ -62,9 +62,7 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	req, err := request.RequestFromReader(conn)
-	resW := &response.Writer{
-		Writer: conn,
-	}
+	resW := response.NewWriter(conn)
 	fmt.Printf("target: %v\n", req.RequestLine.RequestTarget)
 	if err != nil {
 		errorMessage := []byte(fmt.Sprintf("Error while parsing request: %v", err))
