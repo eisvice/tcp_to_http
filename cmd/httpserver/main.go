@@ -45,6 +45,10 @@ func handler(w *response.Writer, req *request.Request) {
 		handlerHttpbin(w, req)
 		return
 	}
+	if req.RequestLine.RequestTarget == "/video" {
+		handlerVideo(w, req)
+		return
+	}
 	handler200(w, req)
 }
 
@@ -165,4 +169,18 @@ func handlerHttpbin(w *response.Writer, req *request.Request) {
 	if err != nil {
 		fmt.Printf("error while writing trailers: %v\n", err)
 	}
+}
+
+func handlerVideo(w *response.Writer, req *request.Request) {
+	file, err := os.ReadFile("./assets/vim.mp4")
+	if err != nil {
+		fmt.Printf("error while openning the file: %v\n", err)
+		handler500(w, req)
+	}
+	w.WriteStatusLine(response.StatusOK)
+	h := response.GetDefaultHeaders(len(file))
+	h.Override("Content-Type", "video/mp4")
+	w.WriteHeaders(h)
+	w.WriteBody(file)
+
 }
