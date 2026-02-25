@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"httpfromtcp/internal/headers"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"httpfromtcp/internal/server"
@@ -101,11 +103,16 @@ func handler200(w *response.Writer, _ *request.Request) {
 }
 
 func handlerHttpbin(w *response.Writer, req *request.Request) {
+	contentSha := strings.ToLower("X-Content-Sha256")
+	contentLength := strings.ToLower("X-Content-Length")
+
 	target := strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin/")
+	fmt.Printf("target: %s\n", target)
 	url := fmt.Sprintf("https://httpbin.org/%s", target)
-	fmt.Printf("Proxying to %s", url)
+	fmt.Printf("Proxying to %s\n", url)
 	resp, err := http.Get(url)
 	if err != nil {
+		fmt.Printf("error in response from the api server: %v", err)
 		handler500(w, req)
 		return
 	}
@@ -115,7 +122,12 @@ func handlerHttpbin(w *response.Writer, req *request.Request) {
 	h := response.GetDefaultHeaders(0)
 	h.Remove("Content-Length")
 	h.Override("Transfer-Encoding", "chunked")
+	h.Set("Trailer", contentSha)
+	h.Set("Trailer", contentLength)
 	w.WriteHeaders(h)
+	
+	fullResponse := []byte{}
+	length := 0
 	
 	buf := make([]byte, 1024)
 	for {
@@ -128,6 +140,8 @@ func handlerHttpbin(w *response.Writer, req *request.Request) {
 				fmt.Printf("error while writing cnunk: %v\n", err)
 				break
 			}
+			fullResponse = append(fullResponse, buf[:n]...)
+			length += n
 		}
 
 		if err == io.EOF {
@@ -137,9 +151,18 @@ func handlerHttpbin(w *response.Writer, req *request.Request) {
 			fmt.Printf("error reading chunk: %v\n", err)
 			break
 		}
+
 	}
 	_, err = w.WriteChunkedBodyDone()
 	if err != nil {
 		fmt.Printf("error while finishing writing chunk: %v", err)
+	}
+
+	trailers := headers.NewHeaders()
+	trailers.Set(contentSha, fmt.Sprintf("%x", sha256.Sum256(fullResponse)))
+	trailers.Set(contentLength, fmt.Sprintf("%d", length))
+	err = w.WriteTrailers(trailers)
+	if err != nil {
+		fmt.Printf("error while writing trailers: %v\n", err)
 	}
 }

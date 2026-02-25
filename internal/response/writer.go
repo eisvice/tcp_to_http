@@ -58,9 +58,21 @@ func (w Writer) WriteChunkedBody(p []byte) (int, error) {
 }
 
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
-	n, err := fmt.Fprintf(w.Writer, "0\r\n\r\n")
+	n, err := fmt.Fprintf(w.Writer, "0\r\n")
 	if err != nil {
 		return n, fmt.Errorf("error while ending writing body: %v", err)
 	}
 	return n, nil
+}
+
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	for k, v := range h {
+		_, err := fmt.Fprintf(w.Writer, "%s: %s\r\n", k, v)
+		if err != nil {
+			return err
+		}
+	}
+
+	w.Writer.Write([]byte("\r\n"))
+	return nil
 }
